@@ -8,4 +8,9 @@ cask "covalent" do
   homepage "https://github.com/yoaquim/covalent"
 
   app "Covalent.app"
+
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-cr", "#{appdir}/Covalent.app"]
+  end
 end
