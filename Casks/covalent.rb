@@ -1,16 +1,16 @@
 cask "covalent" do
-  version "1.3.0"
-  sha256 "ebccf4438c8f54064a70a6b12e01600d59216a16a2ab67e84aa9b6b20e3c3c18"
+  version "1.4.0"
+  sha256 "f111df7b5fc6437f1e133bc2ecc42803e4cfac26d589d46697a9f8939274372a"
 
   url "https://github.com/yoaquim/covalent/releases/download/v#{version}/Covalent_#{version}_aarch64.dmg"
   name "Covalent"
-  desc "Lightweight Markdown viewer with Mermaid diagram support"
+  desc "Native Markdown viewer with math, diagrams, and syntax highlighting"
   homepage "https://github.com/yoaquim/covalent"
 
   app "Covalent.app"
 
   postflight do
     system_command "/usr/bin/xattr",
-                   args: ["-cr", "#{appdir}/Covalent.app"]
+         args: ["-cr", "#{appdir}/Covalent.app"]
   end
 end
