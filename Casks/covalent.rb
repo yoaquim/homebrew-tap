@@ -1,6 +1,6 @@
 cask "covalent" do
-  version "1.6.1"
-  sha256 "5fcbf2b270fdd0f8b7ee2f48ea1a2ca77b9d1db1c6897c2f5847c4194fe47f95"
+  version "1.6.2"
+  sha256 "e6f2c4c256cd128c27526765e6db4b509dc61fa18b5777c42aefafcfadd0e129"
 
   url "https://github.com/yoaquim/covalent/releases/download/v#{version}/Covalent_#{version}_aarch64.dmg"
   name "Covalent"
