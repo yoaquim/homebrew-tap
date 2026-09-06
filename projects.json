@@ -1,0 +1,11 @@
+{
+  "projects": [
+    {
+      "repo": "yoaquim/covalent",
+      "cask": "covalent",
+      "assets": {
+        "default": "Covalent_{version}_aarch64.dmg"
+      }
+    }
+  ]
+}
