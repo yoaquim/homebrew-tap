@@ -234,6 +234,9 @@ def process_entry(entry, casks_dir, dry_run, token):
     new_version = version_from_tag(release["tag_name"], entry["tag_prefix"])
 
     if new_version == current_version:
+        # Still confirm the release assets exist: an asset deleted or renamed
+        # upstream without a new tag should fail the run, not stay invisible.
+        match_assets(entry["assets"], release["assets"], new_version, entry["repo"])
         print(f"{cask}: up to date at {current_version}")
         return False
 

@@ -219,5 +219,60 @@ class RewriteCaskTest(unittest.TestCase):
             update_casks.rewrite_cask(text, "1.1.0", {"default": "a" * 64}, "x.rb")
 
 
+class ProcessEntryUpToDateTest(unittest.TestCase):
+    """The up-to-date early exit must still verify the release assets exist."""
+
+    ENTRY = {
+        "repo": "yoaquim/covalent",
+        "cask": "covalent",
+        "assets": {"default": "Covalent_{version}_aarch64.dmg"},
+        "prerelease": False,
+        "tag_prefix": "v",
+    }
+
+    def setUp(self):
+        import shutil
+        import tempfile
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.casks_dir = Path(self.tmp.name)
+        shutil.copy(FIXTURES / "covalent.rb", self.casks_dir / "covalent.rb")
+
+    def fake_release(self, asset_names):
+        return {
+            "tag_name": "v1.8.2",  # matches the fixture's version -> up to date
+            "html_url": "https://example.invalid/release",
+            "assets": [
+                {"name": n, "browser_download_url": f"https://example.invalid/{n}"}
+                for n in asset_names
+            ],
+        }
+
+    def test_up_to_date_with_assets_present_changes_nothing(self):
+        from unittest import mock
+
+        original = (self.casks_dir / "covalent.rb").read_text(encoding="utf-8")
+        release = self.fake_release(["Covalent_1.8.2_aarch64.dmg"])
+        with mock.patch.object(update_casks, "fetch_latest_release", return_value=release):
+            changed = update_casks.process_entry(
+                self.ENTRY, self.casks_dir, dry_run=False, token=""
+            )
+        self.assertFalse(changed)
+        self.assertEqual(
+            (self.casks_dir / "covalent.rb").read_text(encoding="utf-8"), original
+        )
+
+    def test_up_to_date_with_missing_asset_fails(self):
+        from unittest import mock
+
+        release = self.fake_release(["Covalent_1.8.2_x64-setup.exe"])
+        with mock.patch.object(update_casks, "fetch_latest_release", return_value=release):
+            with self.assertRaisesRegex(UpdateError, "no release asset"):
+                update_casks.process_entry(
+                    self.ENTRY, self.casks_dir, dry_run=False, token=""
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
