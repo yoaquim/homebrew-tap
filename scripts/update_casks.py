@@ -107,14 +107,22 @@ def github_json(url, token):
 
 def fetch_latest_release(repo, include_prerelease, token):
     """Return the newest non-draft release (skipping prereleases unless allowed)."""
-    releases = github_json(f"{API_ROOT}/repos/{repo}/releases?per_page=30", token)
-    for release in releases:
-        if release["draft"]:
-            continue
-        if release["prerelease"] and not include_prerelease:
-            continue
-        return release
-    raise UpdateError(f"{repo}: no suitable release found among the latest 30")
+    if not include_prerelease:
+        # GitHub resolves the newest non-draft, non-prerelease release
+        # server-side, no matter how many drafts or prereleases sit above it.
+        return github_json(f"{API_ROOT}/repos/{repo}/releases/latest", token)
+    # Prereleases are only reachable through the list; paginate a bounded
+    # number of pages rather than trusting the first one.
+    for page in range(1, 11):
+        releases = github_json(
+            f"{API_ROOT}/repos/{repo}/releases?per_page=100&page={page}", token
+        )
+        if not releases:
+            break
+        for release in releases:
+            if not release["draft"]:
+                return release
+    raise UpdateError(f"{repo}: no suitable release found")
 
 
 def version_from_tag(tag, tag_prefix):

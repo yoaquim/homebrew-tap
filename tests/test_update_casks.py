@@ -219,6 +219,34 @@ class RewriteCaskTest(unittest.TestCase):
             update_casks.rewrite_cask(text, "1.1.0", {"default": "a" * 64}, "x.rb")
 
 
+class FetchLatestReleaseTest(unittest.TestCase):
+    def test_stable_releases_use_latest_endpoint(self):
+        from unittest import mock
+
+        stable = {"tag_name": "v1.0.0", "draft": False, "prerelease": False}
+        with mock.patch.object(update_casks, "github_json", return_value=stable) as api:
+            release = update_casks.fetch_latest_release("o/r", False, "")
+        self.assertIs(release, stable)
+        self.assertIn("/releases/latest", api.call_args[0][0])
+
+    def test_prerelease_mode_skips_drafts_and_paginates(self):
+        from unittest import mock
+
+        page1 = [{"tag_name": "v2.0.0-rc1", "draft": True, "prerelease": True}]
+        page2 = [{"tag_name": "v1.9.0-rc1", "draft": False, "prerelease": True}]
+        with mock.patch.object(update_casks, "github_json", side_effect=[page1, page2]):
+            release = update_casks.fetch_latest_release("o/r", True, "")
+        self.assertEqual(release["tag_name"], "v1.9.0-rc1")
+
+    def test_prerelease_mode_fails_when_only_drafts(self):
+        from unittest import mock
+
+        page1 = [{"tag_name": "v2.0.0-rc1", "draft": True, "prerelease": True}]
+        with mock.patch.object(update_casks, "github_json", side_effect=[page1, []]):
+            with self.assertRaisesRegex(UpdateError, "no suitable release"):
+                update_casks.fetch_latest_release("o/r", True, "")
+
+
 class ProcessEntryUpToDateTest(unittest.TestCase):
     """The up-to-date early exit must still verify the release assets exist."""
 
