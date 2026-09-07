@@ -1,0 +1,87 @@
+name: Update casks
+
+on:
+  schedule:
+    # Daily at midnight America/Puerto_Rico. Puerto Rico is AST (UTC-4) all
+    # year — it does not observe DST — so 00:00 local == 04:00 UTC.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      cask:
+        description: "Only update this cask token (blank = all)"
+        required: false
+        type: string
+      dry_run:
+        description: "Print the diff without committing"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Never let two runs race each other on pushes to main.
+concurrency:
+  group: update-casks
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Update casks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "${{ inputs.cask }}" ]; then
+            args+=(--only "${{ inputs.cask }}")
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          python3 scripts/update_casks.py "${args[@]}"
+
+      - name: Detect changed casks
+        id: changed
+        run: |
+          set -euo pipefail
+          files=$(git diff --name-only -- Casks | tr '\n' ' ')
+          echo "files=${files}" >> "$GITHUB_OUTPUT"
+          echo "Changed cask files: ${files:-none}"
+
+      - name: Lint and audit changed casks
+        if: steps.changed.outputs.files != ''
+        run: |
+          set -euo pipefail
+          brew style ${{ steps.changed.outputs.files }}
+          # `brew audit --cask` only works on casks inside an installed tap,
+          # so expose this checkout as the yoaquim/tap tap.
+          tap_dir="$(brew --repository)/Library/Taps/yoaquim/homebrew-tap"
+          mkdir -p "$(dirname "$tap_dir")"
+          cp -R "$GITHUB_WORKSPACE" "$tap_dir"
+          for file in ${{ steps.changed.outputs.files }}; do
+            token=$(basename "$file" .rb)
+            brew audit --cask "yoaquim/tap/${token}"
+          done
+
+      - name: Commit and push (one commit per cask)
+        if: steps.changed.outputs.files != ''
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for file in ${{ steps.changed.outputs.files }}; do
+            token=$(basename "$file" .rb)
+            version=$(sed -n 's/^ *version "\(.*\)".*/\1/p' "$file")
+            name=$(sed -n 's/^ *name "\(.*\)".*/\1/p' "$file")
+            git add "$file"
+            git commit -m "Update ${name:-$token} to ${version}"
+          done
+          git push
