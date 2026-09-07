@@ -211,6 +211,11 @@ class RewriteCaskTest(unittest.TestCase):
         with self.assertRaisesRegex(UpdateError, "arm"):
             update_casks.rewrite_cask(text, "1.1.0", {"arm": "9" * 64}, "x.rb")
 
+    def test_partial_arch_update_of_dual_arch_cask_fails(self):
+        original = (FIXTURES / "dual_arch.rb").read_text(encoding="utf-8")
+        with self.assertRaisesRegex(UpdateError, "no 'intel' asset"):
+            update_casks.rewrite_cask(original, "2.1.0", {"arm": "3" * 64}, "dual_arch.rb")
+
     def test_duplicate_version_lines_fail(self):
         text = 'cask "x" do\n  version "1.0.0"\n  version "1.0.0"\n  sha256 "%s"\nend\n' % (
             "5" * 64
@@ -287,6 +292,24 @@ class ProcessEntryUpToDateTest(unittest.TestCase):
                 self.ENTRY, self.casks_dir, dry_run=False, token=""
             )
         self.assertFalse(changed)
+        self.assertEqual(
+            (self.casks_dir / "covalent.rb").read_text(encoding="utf-8"), original
+        )
+
+    def test_dry_run_outside_repo_root_prints_diff(self):
+        from unittest import mock
+
+        original = (self.casks_dir / "covalent.rb").read_text(encoding="utf-8")
+        release = self.fake_release(["Covalent_1.8.3_aarch64.dmg"])
+        release["tag_name"] = "v1.8.3"
+        # self.casks_dir is a temp dir outside the repo, so the diff header
+        # cannot use a repo-relative path and must fall back gracefully.
+        with mock.patch.object(update_casks, "fetch_latest_release", return_value=release), \
+             mock.patch.object(update_casks, "sha256_of_url", return_value="a" * 64):
+            changed = update_casks.process_entry(
+                self.ENTRY, self.casks_dir, dry_run=True, token=""
+            )
+        self.assertTrue(changed)
         self.assertEqual(
             (self.casks_dir / "covalent.rb").read_text(encoding="utf-8"), original
         )

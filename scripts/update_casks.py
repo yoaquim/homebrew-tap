@@ -211,6 +211,14 @@ def rewrite_cask(text, new_version, shas, path):
             path,
         )
     else:
+        # A cask arch entry with no manifest counterpart would keep its stale
+        # checksum after the version bump — refuse instead of half-updating.
+        for arch in ("arm", "intel"):
+            if arch not in shas and re.search(rf'\b{arch}:\s*"{SHA256_RE}"', text):
+                raise UpdateError(
+                    f"{path}: cask has a sha256 {arch}: entry but the manifest "
+                    f"supplies no '{arch}' asset"
+                )
         for arch, sha in shas.items():
             # Matches both `sha256 arm: "..."` and a bare `intel: "..."`
             # continuation line, but not the `arch arm:` stanza (which holds
@@ -260,7 +268,10 @@ def process_entry(entry, casks_dir, dry_run, token):
     rewritten = rewrite_cask(original, new_version, shas, cask_path)
 
     if dry_run:
-        rel = cask_path.relative_to(REPO_ROOT)
+        try:
+            rel = cask_path.relative_to(REPO_ROOT)
+        except ValueError:  # --casks-dir outside the repo
+            rel = cask_path
         diff = difflib.unified_diff(
             original.splitlines(keepends=True),
             rewritten.splitlines(keepends=True),
